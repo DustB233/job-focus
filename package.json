@@ -1,0 +1,21 @@
+{
+  "name": "job-focus",
+  "packageManager": "npm@11.6.2",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "apps/worker",
+    "packages/shared"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "reset_dev_demo_data": "turbo run reset_dev_demo_data --filter=@job-focus/api",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.2"
+  }
+}

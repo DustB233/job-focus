@@ -1,0 +1,14 @@
+{
+  "name": "@job-focus/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "python -m compileall app scripts",
+    "dev": "python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "lint": "python -m ruff check app scripts tests",
+    "migrate": "alembic upgrade head",
+    "reset_dev_demo_data": "python -m scripts.reset_dev_demo_data",
+    "start": "python -m scripts.start_api",
+    "test": "python -m pytest -q"
+  }
+}

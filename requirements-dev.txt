@@ -1,0 +1,3 @@
+-e ./packages/shared[dev]
+-e ./apps/api[dev]
+-e ./apps/worker[dev]

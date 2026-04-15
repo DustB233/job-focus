@@ -1,0 +1,13 @@
+{
+  "name": "@job-focus/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "python -m compileall worker tests",
+    "dev": "python -m worker.main",
+    "dev:once": "python -m worker.main --once",
+    "lint": "python -m ruff check worker tests",
+    "start": "python -m worker.main",
+    "test": "python -m pytest -q"
+  }
+}

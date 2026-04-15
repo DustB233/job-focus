@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "job-focus-shared"
+version = "0.1.0"
+description = "Shared Python DTOs and enums for Job Focus."
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.9,<3.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["job_focus_shared*"]

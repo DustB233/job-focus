@@ -1,0 +1,96 @@
+databases:
+  - name: job-focus-postgres
+    databaseName: jobfocus
+    user: jobfocus
+    plan: basic-256mb
+    ipAllowList: []
+
+services:
+  - type: keyvalue
+    name: job-focus-redis
+    plan: starter
+    ipAllowList: []
+
+  - type: web
+    name: job-focus-api
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: pip install -e ./packages/shared -e ./apps/api
+    preDeployCommand: cd apps/api && alembic upgrade head
+    startCommand: cd apps/api && python -m scripts.start_api
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: Job Focus API
+      - key: DATABASE_URL
+        fromDatabase:
+          name: job-focus-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: job-focus-redis
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GREENHOUSE_BOARD_TOKENS
+        sync: false
+      - key: LEVER_SITE_NAMES
+        sync: false
+
+  - type: worker
+    name: job-focus-worker
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: pip install -e ./packages/shared -e ./apps/api -e ./apps/worker
+    startCommand: cd apps/worker && python -m worker.main
+    envVars:
+      - key: APP_NAME
+        value: Job Focus Worker
+      - key: DATABASE_URL
+        fromDatabase:
+          name: job-focus-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: job-focus-redis
+          property: connectionString
+      - key: INGEST_INTERVAL_MINUTES
+        value: "30"
+      - key: SCORE_INTERVAL_MINUTES
+        value: "15"
+      - key: PACKET_INTERVAL_MINUTES
+        value: "20"
+      - key: APPLY_INTERVAL_MINUTES
+        value: "25"
+      - key: AUTO_APPLY_MIN_SCORE
+        value: "85"
+      - key: SOURCE_REQUEST_TIMEOUT_SECONDS
+        value: "10"
+      - key: SOURCE_REQUEST_INTERVAL_SECONDS
+        value: "1"
+      - key: SOURCE_MAX_RETRIES
+        value: "3"
+      - key: SOURCE_RETRY_BACKOFF_SECONDS
+        value: "1"
+      - key: ATS_APPLY_TIMEOUT_SECONDS
+        value: "10"
+      - key: BROWSER_ASSIST_ENABLED
+        value: "false"
+      - key: BROWSER_FALLBACK_ENABLED
+        value: "false"
+      - key: BROWSER_HEADLESS
+        value: "true"
+      - key: BROWSER_AUTH_STATE_DIR
+        value: ""
+      - key: BROWSER_RESUME_STORAGE_DIR
+        value: "data/resumes"
+      - key: GREENHOUSE_BOARD_TOKENS
+        sync: false
+      - key: LEVER_SITE_NAMES
+        sync: false
