@@ -53,6 +53,7 @@ LEVER_SITE_NAMES=
 Notes:
 
 - Render injects `PORT` automatically. The API start command now respects that runtime port.
+- `DATABASE_URL` may be provided as `postgres://...`, `postgresql://...`, or `postgresql+psycopg://...`. The app normalizes all Postgres forms to the Psycopg 3 SQLAlchemy dialect internally.
 - `CORS_ORIGINS` should contain the production Vercel origin, and any additional trusted web origins, comma-separated.
 - Vercel preview deployments use different hostnames than production. Because profile and preference saves use browser-side API calls, either keep verification on the production web domain or explicitly add the preview origin to `CORS_ORIGINS` while testing it.
 
@@ -84,6 +85,7 @@ BROWSER_RESUME_STORAGE_DIR=data/resumes
 ```
 
 Keep `BROWSER_ASSIST_ENABLED=false` unless you are intentionally enabling browser assist and have provisioned its storage/runtime needs. LinkedIn and Handshake remain manual-only.
+The worker accepts the same `DATABASE_URL` forms as the API and normalizes them to Psycopg 3 internally.
 
 ## Exact Build, Start, And Migration Commands
 

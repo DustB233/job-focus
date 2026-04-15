@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from app.models import Application, ApplicationPacket, Job, JobMatch, User
 from app.repositories import DuplicateApplicationError, JobFocusRepository
+from app.db import normalize_database_url
 from job_focus_shared import (
     ApplicationStatus,
     JobSource,
@@ -39,8 +40,9 @@ def utc_now() -> datetime:
 
 
 def build_session_factory(database_url: str) -> sessionmaker[Session]:
-    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
-    engine = create_engine(database_url, future=True, connect_args=connect_args)
+    normalized_database_url = normalize_database_url(database_url)
+    connect_args = {"check_same_thread": False} if normalized_database_url.startswith("sqlite") else {}
+    engine = create_engine(normalized_database_url, future=True, connect_args=connect_args)
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

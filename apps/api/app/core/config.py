@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.db import normalize_database_url
+
 LOCAL_APP_ENVS = {"development", "dev", "local", "test"}
 
 
@@ -34,15 +36,21 @@ class Settings(BaseSettings):
         return _split_csv(self.lever_site_names)
 
     @property
+    def normalized_database_url(self) -> str:
+        return normalize_database_url(self.database_url)
+
+    @property
     def is_local_environment(self) -> bool:
         return self.app_env.strip().lower() in LOCAL_APP_ENVS
 
     @property
     def is_local_database(self) -> bool:
-        if self.database_url.startswith("sqlite"):
+        database_url = self.normalized_database_url
+
+        if database_url.startswith("sqlite"):
             return True
 
-        parsed = urlparse(self.database_url)
+        parsed = urlparse(database_url)
         hostname = (parsed.hostname or "").lower()
         return hostname in {"localhost", "127.0.0.1"}
 

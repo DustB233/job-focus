@@ -8,6 +8,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
+from app.db import normalize_database_url
 from app.models import Base
 
 _engine: Engine | None = None
@@ -23,7 +24,7 @@ def _connect_args(database_url: str) -> dict[str, object]:
 def get_engine(database_url: str | None = None) -> Engine:
     global _engine, _session_factory
 
-    resolved_url = database_url or get_settings().database_url
+    resolved_url = normalize_database_url(database_url or get_settings().database_url)
     current_url = str(_engine.url) if _engine is not None else None
 
     if _engine is None or current_url != resolved_url:

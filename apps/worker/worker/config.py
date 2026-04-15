@@ -5,6 +5,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.db import normalize_database_url
+
 
 class WorkerSettings(BaseSettings):
     app_name: str = "Job Focus Worker"
@@ -37,6 +39,10 @@ class WorkerSettings(BaseSettings):
     @property
     def lever_sites(self) -> list[str]:
         return _split_csv(self.lever_site_names)
+
+    @property
+    def normalized_database_url(self) -> str:
+        return normalize_database_url(self.database_url)
 
     @property
     def browser_automation_enabled(self) -> bool:
