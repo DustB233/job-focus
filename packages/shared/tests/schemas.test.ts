@@ -4,9 +4,11 @@ import {
   applicationSchema,
   discoveredJobSchema,
   jobSchema,
+  sourceHealthSchema,
+  sourceRegistrySchema,
   userProfileSchema
 } from "../src";
-import { demoApplications, demoJobs, demoUser } from "../src/demo/data";
+import { demoApplications, demoJobs, demoSourceHealth, demoUser } from "../src/demo/data";
 
 describe("shared schemas", () => {
   it("validates the demo user profile", () => {
@@ -19,6 +21,35 @@ describe("shared schemas", () => {
 
   it("validates demo applications", () => {
     expect(applicationSchema.parse(demoApplications[0]).status).toBe("waiting_review");
+  });
+
+  it("validates demo source health", () => {
+    expect(sourceHealthSchema.parse(demoSourceHealth[0]).externalIdentifier).toBe("northstar");
+  });
+
+  it("validates source registry payloads", () => {
+    expect(
+      sourceRegistrySchema.parse({
+        id: "4de97149-68d8-4a0d-a949-ed9734ec4a8a",
+        source: "greenhouse",
+        displayName: "Greenhouse / Northstar",
+        externalIdentifier: "northstar",
+        baseUrl: "https://boards-api.greenhouse.io/v1/boards/northstar",
+        isActive: true,
+        trackedJobCount: 14,
+        status: "healthy",
+        lastSyncRequestedAt: null,
+        lastSyncStartedAt: "2026-04-15T10:00:00.000Z",
+        lastSyncCompletedAt: "2026-04-15T10:00:10.000Z",
+        lastSuccessfulSyncAt: "2026-04-15T10:00:10.000Z",
+        lastError: null,
+        lastErrorAt: null,
+        lastFetchedJobCount: 14,
+        lastCreatedJobCount: 2,
+        lastUpdatedJobCount: 12,
+        note: "Latest sync succeeded and the source is producing jobs."
+      }).source
+    ).toBe("greenhouse");
   });
 
   it("validates discovered job payloads", () => {

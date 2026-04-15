@@ -63,6 +63,7 @@ export const userPreferenceUpdateSchema = userPreferenceSchema.omit({
 
 export const jobSchema = z.object({
   id: z.string().uuid(),
+  sourceId: z.string().uuid(),
   externalJobId: z.string().min(1),
   company: z.string().min(1),
   title: z.string().min(1),
@@ -70,6 +71,8 @@ export const jobSchema = z.object({
   workMode: z.enum(workModes),
   employmentType: z.enum(employmentTypes),
   source: z.enum(jobSources),
+  sourceDisplayName: z.string().min(1),
+  sourceExternalIdentifier: z.string().min(1).nullable(),
   salaryMin: z.number().int().nonnegative(),
   salaryMax: z.number().int().nonnegative(),
   description: z.string().min(1),
@@ -162,14 +165,54 @@ export const applicationReviewRequestSchema = z.object({
 });
 
 export const sourceHealthSchema = z.object({
+  id: z.string().uuid(),
   source: z.enum(jobSources),
   displayName: z.string().min(1),
+  externalIdentifier: z.string().min(1).nullable(),
+  baseUrl: z.string().url().nullable(),
   status: z.enum(sourceHealthStatuses),
   isActive: z.boolean(),
   jobCount: z.number().int().nonnegative(),
   lastSeenAt: z.string().datetime().nullable(),
   lastPostedAt: z.string().datetime().nullable(),
+  lastSyncRequestedAt: z.string().datetime().nullable(),
+  lastSyncStartedAt: z.string().datetime().nullable(),
+  lastSyncCompletedAt: z.string().datetime().nullable(),
+  lastSuccessfulSyncAt: z.string().datetime().nullable(),
+  lastError: z.string().nullable(),
+  lastErrorAt: z.string().datetime().nullable(),
+  lastFetchedJobCount: z.number().int().nonnegative(),
+  lastCreatedJobCount: z.number().int().nonnegative(),
+  lastUpdatedJobCount: z.number().int().nonnegative(),
   note: z.string().min(1)
+});
+
+export const sourceRegistrySchema = z.object({
+  id: z.string().uuid(),
+  source: z.enum(jobSources),
+  displayName: z.string().min(1),
+  externalIdentifier: z.string().min(1).nullable(),
+  baseUrl: z.string().url().nullable(),
+  isActive: z.boolean(),
+  trackedJobCount: z.number().int().nonnegative(),
+  status: z.enum(sourceHealthStatuses),
+  lastSyncRequestedAt: z.string().datetime().nullable(),
+  lastSyncStartedAt: z.string().datetime().nullable(),
+  lastSyncCompletedAt: z.string().datetime().nullable(),
+  lastSuccessfulSyncAt: z.string().datetime().nullable(),
+  lastError: z.string().nullable(),
+  lastErrorAt: z.string().datetime().nullable(),
+  lastFetchedJobCount: z.number().int().nonnegative(),
+  lastCreatedJobCount: z.number().int().nonnegative(),
+  lastUpdatedJobCount: z.number().int().nonnegative(),
+  note: z.string().min(1)
+});
+
+export const sourceCreateSchema = z.object({
+  source: z.enum(jobSources),
+  externalIdentifier: z.string().min(1),
+  displayName: z.string().min(1).nullable(),
+  isActive: z.boolean()
 });
 
 export const trackerOverviewSchema = z.object({

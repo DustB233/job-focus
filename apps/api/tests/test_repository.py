@@ -15,6 +15,7 @@ from job_focus_shared import (
     EmploymentType,
     JobSource,
     PacketStatus,
+    SourceCreateDTO,
     WorkMode,
 )
 
@@ -171,8 +172,9 @@ def test_upsert_discovered_job_deduplicates_source_external_id(db_session: Sessi
     repository = JobFocusRepository(db_session)
     source = repository.get_or_create_job_source(
         slug=JobSource.GREENHOUSE,
+        external_identifier="northstar",
         display_name="Greenhouse",
-        base_url="https://boards-api.greenhouse.io/v1/boards",
+        base_url="https://boards-api.greenhouse.io/v1/boards/northstar",
     )
     discovered_job = DiscoveredJobDTO(
         source=JobSource.GREENHOUSE,
@@ -220,3 +222,30 @@ def test_upsert_discovered_job_deduplicates_source_external_id(db_session: Sessi
     assert refreshed_job.salary_max == 190000
     assert refreshed_job.raw_payload["revision"] == 2
     assert refreshed_job.normalized_payload["title"] == "Senior AI Program Manager"
+
+
+def test_source_registry_supports_multiple_sources_per_provider(db_session: Session) -> None:
+    repository = JobFocusRepository(db_session)
+
+    greenhouse_one = repository.create_job_source(
+        SourceCreateDTO(
+            source=JobSource.GREENHOUSE,
+            external_identifier="northstar",
+            display_name="Greenhouse / Northstar",
+            is_active=True,
+        )
+    )
+    greenhouse_two = repository.create_job_source(
+        SourceCreateDTO(
+            source=JobSource.GREENHOUSE,
+            external_identifier="acme",
+            display_name="Greenhouse / Acme",
+            is_active=True,
+        )
+    )
+
+    assert greenhouse_one.id != greenhouse_two.id
+    assert repository.count_configured_live_sources() >= 2
+    assert {
+        source.external_identifier for source in repository.list_active_ingest_sources()
+    } >= {"northstar", "acme"}

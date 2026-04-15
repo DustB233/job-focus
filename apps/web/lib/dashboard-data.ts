@@ -11,6 +11,7 @@ import type {
 } from "@job-focus/shared";
 
 import { apiBaseUrl } from "./client-api";
+import { isLiveSource } from "./dashboard-presenters";
 
 export type DashboardLoadResult =
   | {
@@ -101,7 +102,9 @@ export function buildOverviewMetrics(snapshot: DashboardSnapshotDTO) {
     },
     {
       label: "Healthy sources",
-      value: snapshot.sourceHealth.filter((source) => source.status === "healthy").length,
+      value: snapshot.sourceHealth.filter(
+        (source) => source.status === "healthy" && isLiveSource(source)
+      ).length,
       detail:
         snapshot.tracker.configuredLiveSourceCount > 0
           ? `${snapshot.tracker.configuredLiveSourceCount} live connectors configured`

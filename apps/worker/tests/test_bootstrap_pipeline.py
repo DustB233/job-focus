@@ -72,8 +72,9 @@ def test_bootstrapped_primary_user_unblocks_scoring_and_packet_generation(
         repository = JobFocusRepository(session)
         source = repository.get_or_create_job_source(
             slug=JobSource.GREENHOUSE,
-            display_name="Greenhouse",
-            base_url="https://boards-api.greenhouse.io/v1/boards",
+            external_identifier="acme",
+            display_name="Greenhouse / Acme",
+            base_url="https://boards-api.greenhouse.io/v1/boards/acme",
         )
         repository.upsert_discovered_job(
             source=source,

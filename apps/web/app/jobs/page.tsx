@@ -50,7 +50,7 @@ export default async function JobsPage() {
           <LiveDataEmptyStateCard
             title="No live sources configured"
             description="There are no configured Greenhouse or Lever sources yet, so the jobs catalog is empty."
-            hint="Set GREENHOUSE_BOARD_TOKENS and/or LEVER_SITE_NAMES in both the API and worker environment."
+            hint="Open the Sources page and register at least one Greenhouse board or Lever site."
           />
         )
       ) : (

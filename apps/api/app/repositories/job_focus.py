@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote
 
 from job_focus_shared import (
     ApplicationDTO,
@@ -19,8 +20,10 @@ from job_focus_shared import (
     PacketStatus,
     ProfileUpdateDTO,
     ResumeDTO,
+    SourceCreateDTO,
     SourceHealthDTO,
     SourceHealthStatus,
+    SourceRegistryDTO,
     UserPreferenceDTO,
     UserPreferenceUpdateDTO,
     UserProfileDTO,
@@ -93,6 +96,36 @@ ALLOWED_APPLICATION_TRANSITIONS: dict[ApplicationStatus, set[ApplicationStatus]]
     ApplicationStatus.DUPLICATE: set(),
 }
 
+AUTOMATED_SOURCE_SLUGS = {JobSource.GREENHOUSE, JobSource.LEVER}
+MANUAL_ONLY_SOURCE_SLUGS = {JobSource.MANUAL}
+
+
+def _title_case_identifier(value: str) -> str:
+    parts = [part for part in value.replace("_", "-").split("-") if part]
+    return " ".join(part.title() for part in parts)
+
+
+def default_source_display_name(slug: JobSource, external_identifier: str | None = None) -> str:
+    provider_name = {
+        JobSource.GREENHOUSE: "Greenhouse",
+        JobSource.LEVER: "Lever",
+        JobSource.ASHBY: "Ashby",
+        JobSource.MANUAL: "Manual Link",
+    }[slug]
+    if external_identifier:
+        return f"{provider_name} / {_title_case_identifier(external_identifier)}"
+    return provider_name
+
+
+def default_source_base_url(slug: JobSource, external_identifier: str | None = None) -> str | None:
+    if slug == JobSource.GREENHOUSE and external_identifier:
+        return f"https://boards-api.greenhouse.io/v1/boards/{quote(external_identifier, safe='')}"
+    if slug == JobSource.LEVER and external_identifier:
+        return f"https://api.lever.co/v0/postings/{quote(external_identifier, safe='')}?mode=json"
+    if slug == JobSource.ASHBY:
+        return "https://jobs.ashbyhq.com"
+    return None
+
 
 class InvalidApplicationTransitionError(ValueError):
     pass
@@ -159,9 +192,28 @@ class JobFocusRepository:
             self.session.scalars(
                 select(JobSourceConfig)
                 .options(selectinload(JobSourceConfig.jobs))
-                .order_by(JobSourceConfig.display_name.asc())
+                .order_by(JobSourceConfig.display_name.asc(), JobSourceConfig.created_at.asc())
             ).all()
         )
+
+    def list_source_registry(self) -> list[JobSourceConfig]:
+        return self.list_job_sources()
+
+    def list_active_ingest_sources(self) -> list[JobSourceConfig]:
+        return list(
+            self.session.scalars(
+                select(JobSourceConfig)
+                .where(
+                    JobSourceConfig.is_active.is_(True),
+                    JobSourceConfig.slug.in_(tuple(AUTOMATED_SOURCE_SLUGS)),
+                    JobSourceConfig.external_identifier.is_not(None),
+                )
+                .order_by(JobSourceConfig.display_name.asc(), JobSourceConfig.created_at.asc())
+            ).all()
+        )
+
+    def count_configured_live_sources(self) -> int:
+        return len(self.list_active_ingest_sources())
 
     def list_matches_for_user(self, user_id: str) -> list[JobMatch]:
         return list(
@@ -194,6 +246,25 @@ class JobFocusRepository:
             .where(Job.id == job_id)
             .options(selectinload(Job.job_source))
         ).first()
+
+    def get_job_source(self, source_id: str) -> JobSourceConfig | None:
+        return self.session.scalars(
+            select(JobSourceConfig)
+            .where(JobSourceConfig.id == source_id)
+            .options(selectinload(JobSourceConfig.jobs))
+        ).first()
+
+    def get_job_source_by_slug_identifier(
+        self,
+        slug: JobSource,
+        external_identifier: str | None,
+    ) -> JobSourceConfig | None:
+        statement = select(JobSourceConfig).where(JobSourceConfig.slug == slug)
+        if external_identifier is None:
+            statement = statement.where(JobSourceConfig.external_identifier.is_(None))
+        else:
+            statement = statement.where(JobSourceConfig.external_identifier == external_identifier)
+        return self.session.scalars(statement).first()
 
     def get_application_for_job(self, user_id: str, job_id: str) -> Application | None:
         return self.session.scalars(
@@ -263,20 +334,116 @@ class JobFocusRepository:
         return preferences
 
     def get_or_create_job_source(
-        self, slug: JobSource, display_name: str, base_url: str | None = None
+        self,
+        *,
+        slug: JobSource,
+        external_identifier: str | None = None,
+        display_name: str,
+        base_url: str | None = None,
+        is_active: bool = True,
     ) -> JobSourceConfig:
-        source = self.session.scalars(
-            select(JobSourceConfig).where(JobSourceConfig.slug == slug)
-        ).first()
+        source = self.get_job_source_by_slug_identifier(slug, external_identifier)
+        resolved_base_url = base_url if base_url is not None else default_source_base_url(
+            slug, external_identifier
+        )
         if source is not None:
             source.display_name = display_name
-            if base_url is not None:
-                source.base_url = base_url
+            source.base_url = resolved_base_url
+            source.is_active = is_active
             self.session.flush()
             return source
 
-        source = JobSourceConfig(slug=slug, display_name=display_name, base_url=base_url)
+        source = JobSourceConfig(
+            slug=slug,
+            external_identifier=external_identifier,
+            display_name=display_name,
+            base_url=resolved_base_url,
+            is_active=is_active,
+        )
         self.session.add(source)
+        self.session.flush()
+        return source
+
+    def create_job_source(self, payload: SourceCreateDTO) -> JobSourceConfig:
+        external_identifier = payload.external_identifier.strip()
+        source = self.get_job_source_by_slug_identifier(payload.source, external_identifier)
+        if source is not None:
+            source.display_name = (
+                payload.display_name.strip()
+                if payload.display_name and payload.display_name.strip()
+                else source.display_name
+            )
+            source.is_active = payload.is_active
+            source.base_url = default_source_base_url(payload.source, external_identifier)
+            self.session.commit()
+            self.session.refresh(source)
+            return source
+
+        source = JobSourceConfig(
+            slug=payload.source,
+            external_identifier=external_identifier,
+            display_name=(
+                payload.display_name.strip()
+                if payload.display_name and payload.display_name.strip()
+                else default_source_display_name(payload.source, external_identifier)
+            ),
+            base_url=default_source_base_url(payload.source, external_identifier),
+            is_active=payload.is_active,
+        )
+        self.session.add(source)
+        self.session.commit()
+        self.session.refresh(source)
+        return source
+
+    def set_job_source_active(self, source: JobSourceConfig, is_active: bool) -> JobSourceConfig:
+        source.is_active = is_active
+        self.session.commit()
+        self.session.refresh(source)
+        return source
+
+    def mark_job_source_sync_requested(
+        self,
+        source: JobSourceConfig,
+        *,
+        requested_at: datetime | None = None,
+    ) -> JobSourceConfig:
+        source.last_sync_requested_at = requested_at or datetime.now(timezone.utc)
+        self.session.commit()
+        self.session.refresh(source)
+        return source
+
+    def mark_job_source_sync_started(
+        self,
+        source: JobSourceConfig,
+        *,
+        started_at: datetime | None = None,
+    ) -> JobSourceConfig:
+        source.last_sync_started_at = started_at or datetime.now(timezone.utc)
+        self.session.flush()
+        return source
+
+    def mark_job_source_sync_completed(
+        self,
+        source: JobSourceConfig,
+        *,
+        completed_at: datetime | None = None,
+        fetched_job_count: int = 0,
+        created_job_count: int = 0,
+        updated_job_count: int = 0,
+        error: str | None = None,
+    ) -> JobSourceConfig:
+        resolved_completed_at = completed_at or datetime.now(timezone.utc)
+        source.last_sync_completed_at = resolved_completed_at
+        source.last_fetched_job_count = fetched_job_count
+        source.last_created_job_count = created_job_count
+        source.last_updated_job_count = updated_job_count
+        if error:
+            source.last_error = error
+            source.last_error_at = resolved_completed_at
+        else:
+            source.last_successful_sync_at = resolved_completed_at
+            source.last_error = None
+            source.last_error_at = None
         self.session.flush()
         return source
 
@@ -548,6 +715,7 @@ class JobFocusRepository:
     def to_job_dto(self, job: Job) -> JobDTO:
         return JobDTO(
             id=job.id,
+            source_id=job.job_source_id,
             external_job_id=job.external_job_id,
             company=job.company,
             title=job.title,
@@ -555,6 +723,8 @@ class JobFocusRepository:
             work_mode=job.work_mode,
             employment_type=job.employment_type,
             source=job.job_source.slug,
+            source_display_name=job.job_source.display_name,
+            source_external_identifier=job.job_source.external_identifier,
             salary_min=job.salary_min,
             salary_max=job.salary_max,
             description=job.description,
@@ -644,40 +814,72 @@ class JobFocusRepository:
         self,
         *,
         last_ingest_at: datetime | None = None,
-        configured_live_sources: dict[JobSource, str] | None = None,
     ) -> list[SourceHealthDTO]:
-        by_source: dict[JobSource, SourceHealthDTO] = {}
-        for source in self.list_job_sources():
-            jobs = sorted(source.jobs, key=lambda job: job.updated_at, reverse=True)
-            last_seen_at = jobs[0].updated_at if jobs else last_ingest_at
-            last_posted_at = max((job.posted_at for job in jobs), default=None)
-            status, note = self._resolve_source_health(source, jobs, last_ingest_at)
-            by_source[source.slug] = SourceHealthDTO(
-                source=source.slug,
-                display_name=source.display_name,
-                status=status,
-                is_active=source.is_active,
-                job_count=len(jobs),
-                last_seen_at=last_seen_at,
-                last_posted_at=last_posted_at,
-                note=note,
-            )
+        return [
+            self.to_source_health_dto(source, last_ingest_at=last_ingest_at)
+            for source in self.list_job_sources()
+        ]
 
-        for slug, display_name in (configured_live_sources or {}).items():
-            if slug in by_source:
-                continue
-            by_source[slug] = SourceHealthDTO(
-                source=slug,
-                display_name=display_name,
-                status=SourceHealthStatus.WARNING,
-                is_active=True,
-                job_count=0,
-                last_seen_at=last_ingest_at,
-                last_posted_at=None,
-                note="Source is configured, but no jobs have been discovered yet.",
-            )
+    def to_source_health_dto(
+        self,
+        source: JobSourceConfig,
+        *,
+        last_ingest_at: datetime | None = None,
+    ) -> SourceHealthDTO:
+        jobs = sorted(source.jobs, key=lambda job: job.updated_at, reverse=True)
+        last_seen_at = jobs[0].updated_at if jobs else source.last_successful_sync_at or last_ingest_at
+        last_posted_at = max((job.posted_at for job in jobs), default=None)
+        status, note = self._resolve_source_health(source, jobs, last_ingest_at)
+        return SourceHealthDTO(
+            id=source.id,
+            source=source.slug,
+            display_name=source.display_name,
+            external_identifier=source.external_identifier,
+            base_url=source.base_url,
+            status=status,
+            is_active=source.is_active,
+            job_count=len(jobs),
+            last_seen_at=last_seen_at,
+            last_posted_at=last_posted_at,
+            last_sync_requested_at=source.last_sync_requested_at,
+            last_sync_started_at=source.last_sync_started_at,
+            last_sync_completed_at=source.last_sync_completed_at,
+            last_successful_sync_at=source.last_successful_sync_at,
+            last_error=source.last_error,
+            last_error_at=source.last_error_at,
+            last_fetched_job_count=source.last_fetched_job_count,
+            last_created_job_count=source.last_created_job_count,
+            last_updated_job_count=source.last_updated_job_count,
+            note=note,
+        )
 
-        return sorted(by_source.values(), key=lambda source: source.display_name.lower())
+    def to_source_registry_dto(
+        self,
+        source: JobSourceConfig,
+        *,
+        last_ingest_at: datetime | None = None,
+    ) -> SourceRegistryDTO:
+        health = self.to_source_health_dto(source, last_ingest_at=last_ingest_at)
+        return SourceRegistryDTO(
+            id=source.id,
+            source=source.slug,
+            display_name=source.display_name,
+            external_identifier=source.external_identifier,
+            base_url=source.base_url,
+            is_active=source.is_active,
+            tracked_job_count=health.job_count,
+            status=health.status,
+            last_sync_requested_at=source.last_sync_requested_at,
+            last_sync_started_at=source.last_sync_started_at,
+            last_sync_completed_at=source.last_sync_completed_at,
+            last_successful_sync_at=source.last_successful_sync_at,
+            last_error=source.last_error,
+            last_error_at=source.last_error_at,
+            last_fetched_job_count=source.last_fetched_job_count,
+            last_created_job_count=source.last_created_job_count,
+            last_updated_job_count=source.last_updated_job_count,
+            note=health.note,
+        )
 
     def to_auth_session_dto(self, token: str, user: User) -> AuthSessionDTO:
         return AuthSessionDTO(access_token=token, token_type="bearer", user=self.to_user_profile_dto(user))
@@ -736,16 +938,51 @@ class JobFocusRepository:
         if not source.is_active:
             return (
                 SourceHealthStatus.INACTIVE,
-                "Manual intake only. Automated discovery is intentionally disabled.",
+                (
+                    "Manual intake only. Automated discovery is intentionally disabled."
+                    if source.slug in MANUAL_ONLY_SOURCE_SLUGS
+                    else "Source is disabled and will be skipped by scheduled ingest runs."
+                ),
+            )
+        if source.slug not in AUTOMATED_SOURCE_SLUGS:
+            return (
+                SourceHealthStatus.WARNING,
+                "This provider is stored, but no automated ingest adapter is enabled for it.",
+            )
+        if not source.external_identifier:
+            return (
+                SourceHealthStatus.WARNING,
+                "Source is missing its external identifier, so the worker cannot sync it yet.",
+            )
+        if source.last_error and (
+            source.last_successful_sync_at is None
+            or (
+                source.last_error_at is not None
+                and source.last_error_at >= source.last_successful_sync_at
+            )
+        ):
+            return (
+                SourceHealthStatus.WARNING,
+                f"Latest sync failed: {source.last_error}",
+            )
+        if source.last_sync_started_at is None:
+            return (
+                SourceHealthStatus.WARNING,
+                "Source is configured, but the worker has not synced it yet.",
             )
         if not jobs:
             return (
                 SourceHealthStatus.WARNING,
-                "Source is active, but no jobs have been discovered yet.",
+                "Source is active, but no jobs were discovered during the latest sync.",
             )
 
         freshest_job = max(job.updated_at for job in jobs)
-        reference_time = last_ingest_at or freshest_job
+        reference_time = (
+            source.last_successful_sync_at
+            or source.last_sync_completed_at
+            or last_ingest_at
+            or freshest_job
+        )
         if (reference_time - freshest_job).days >= 3:
             return (
                 SourceHealthStatus.WARNING,

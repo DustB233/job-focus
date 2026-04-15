@@ -40,7 +40,7 @@ export default async function ApplicationsPage() {
           <LiveDataEmptyStateCard
             title="No live sources configured"
             description="No live application pipeline can run until at least one Greenhouse or Lever source is configured."
-            hint="Set GREENHOUSE_BOARD_TOKENS and/or LEVER_SITE_NAMES in both the API and worker environment."
+            hint="Open the Sources page and register at least one Greenhouse board or Lever site."
           />
         )
       ) : (

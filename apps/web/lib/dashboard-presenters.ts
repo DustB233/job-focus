@@ -74,7 +74,7 @@ export function hasWorkerActivity(tracker: TrackerOverviewDTO) {
 }
 
 export function isLiveSource(source: Pick<SourceHealthDTO, "source" | "isActive">) {
-  return source.isActive && source.source !== "manual";
+  return source.isActive && (source.source === "greenhouse" || source.source === "lever");
 }
 
 export function sourceHealthSummary(

@@ -58,7 +58,7 @@ def test_greenhouse_adapter_normalizes_mocked_payload() -> None:
         }
     )
 
-    adapter = GreenhouseJobAdapter(["northstar"], client)  # type: ignore[arg-type]
+    adapter = GreenhouseJobAdapter("northstar", client)  # type: ignore[arg-type]
     jobs = adapter.fetch_jobs(run_at=datetime(2026, 4, 13, 8, 0, tzinfo=timezone.utc))
 
     assert len(jobs) == 1
@@ -96,7 +96,7 @@ def test_lever_adapter_normalizes_mocked_payload() -> None:
         }
     )
 
-    adapter = LeverJobAdapter(["relay"], client)  # type: ignore[arg-type]
+    adapter = LeverJobAdapter("relay", client)  # type: ignore[arg-type]
     jobs = adapter.fetch_jobs(run_at=datetime(2026, 4, 13, 8, 0, tzinfo=timezone.utc))
 
     assert len(jobs) == 1

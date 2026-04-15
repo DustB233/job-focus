@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
@@ -25,37 +24,44 @@ from worker.clients.http import RateLimitedJsonClient
 class GreenhouseJobAdapter(SourceAdapter):
     name = "Greenhouse"
     slug = JobSource.GREENHOUSE
-    source_display_name = "Greenhouse"
-    base_url = "https://boards-api.greenhouse.io/v1/boards"
+    source_id: str | None
 
-    def __init__(self, board_tokens: Sequence[str], http_client: RateLimitedJsonClient) -> None:
-        self.board_tokens = [token.strip() for token in board_tokens if token.strip()]
+    def __init__(
+        self,
+        board_token: str,
+        http_client: RateLimitedJsonClient,
+        *,
+        source_id: str | None = None,
+        source_display_name: str | None = None,
+    ) -> None:
+        normalized_board_token = board_token.strip()
+        self.source_id = source_id
+        self.board_token = normalized_board_token
+        self.source_external_identifier = normalized_board_token
+        self.source_display_name = source_display_name or f"Greenhouse / {title_case_slug(normalized_board_token)}"
+        self.base_url = f"https://boards-api.greenhouse.io/v1/boards/{quote(normalized_board_token, safe='')}"
         self.http_client = http_client
 
     def fetch_jobs(self, *, run_at: datetime | None = None) -> list[DiscoveredJobDTO]:
-        discovered_jobs: list[DiscoveredJobDTO] = []
-        for board_token in self.board_tokens:
-            board_url = f"{self.base_url}/{quote(board_token, safe='')}"
-            jobs_url = f"{board_url}/jobs?content=true"
+        jobs_url = f"{self.base_url}/jobs?content=true"
 
-            board_payload = self.http_client.get_json(board_url)
-            jobs_payload = self.http_client.get_json(jobs_url)
-            company_name = normalize_text(
-                board_payload.get("name") if isinstance(board_payload, dict) else None,
-                fallback=title_case_slug(board_token),
+        board_payload = self.http_client.get_json(self.base_url)
+        jobs_payload = self.http_client.get_json(jobs_url)
+        company_name = normalize_text(
+            board_payload.get("name") if isinstance(board_payload, dict) else None,
+            fallback=title_case_slug(self.board_token),
+        )
+
+        raw_jobs = jobs_payload.get("jobs", []) if isinstance(jobs_payload, dict) else []
+        return [
+            self._normalize_job(
+                board_token=self.board_token,
+                company_name=company_name,
+                raw_job=raw_job,
+                run_at=run_at,
             )
-
-            raw_jobs = jobs_payload.get("jobs", []) if isinstance(jobs_payload, dict) else []
-            for raw_job in raw_jobs:
-                discovered_jobs.append(
-                    self._normalize_job(
-                        board_token=board_token,
-                        company_name=company_name,
-                        raw_job=raw_job,
-                        run_at=run_at,
-                    )
-                )
-        return discovered_jobs
+            for raw_job in raw_jobs
+        ]
 
     def _normalize_job(
         self,

@@ -92,7 +92,7 @@ export default async function OverviewPage() {
                       </div>
                       <p className="muted">{match.rationale}</p>
                       <div className="job-meta">
-                        <span className="chip">{formatLabel(job.source)}</span>
+                        <span className="chip">{job.sourceDisplayName}</span>
                         <span className="chip">{job.location}</span>
                         <span className="chip mono">{formatSalary(job)}</span>
                       </div>
@@ -151,7 +151,7 @@ export default async function OverviewPage() {
                 ? hasTrackerActivity
                   ? "The worker has recorded activity, but no live records have been discovered yet."
                   : "Start the worker and verify the configured sources can fetch jobs."
-                : "Set GREENHOUSE_BOARD_TOKENS and/or LEVER_SITE_NAMES in both the API and worker environment, then start the worker."
+                : "Add Greenhouse or Lever sources from the source registry, then let the worker ingest them."
             }
           />
         )

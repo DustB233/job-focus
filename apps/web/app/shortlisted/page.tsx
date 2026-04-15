@@ -44,7 +44,7 @@ export default async function ShortlistedPage() {
           <LiveDataEmptyStateCard
             title="No live sources configured"
             description="There are no configured live sources yet, so no shortlist can be generated."
-            hint="Set GREENHOUSE_BOARD_TOKENS and/or LEVER_SITE_NAMES in both the API and worker environment."
+            hint="Open the Sources page and register at least one Greenhouse board or Lever site."
           />
         )
       ) : (

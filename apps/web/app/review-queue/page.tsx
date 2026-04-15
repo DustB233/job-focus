@@ -45,7 +45,7 @@ export default async function ReviewQueuePage() {
           <LiveDataEmptyStateCard
             title="No live sources configured"
             description="The review queue will stay empty until at least one live source is configured."
-            hint="Set GREENHOUSE_BOARD_TOKENS and/or LEVER_SITE_NAMES in both the API and worker environment."
+            hint="Open the Sources page and register at least one Greenhouse board or Lever site."
           />
         )
       ) : (

@@ -59,7 +59,7 @@ export function ApplicationsBoard({
   const statusOptions = getStatusOptions(modeApplications);
   const filteredApplications = modeApplications.filter((application) => {
     const matchesSource =
-      sourceFilter === "all" || application.job.source === sourceFilter;
+      sourceFilter === "all" || application.job.sourceDisplayName === sourceFilter;
     const matchesStatus =
       statusFilter === "all" || application.status === statusFilter;
     const matchesCompany =
@@ -125,10 +125,12 @@ export function ApplicationsBoard({
             <span>Source</span>
             <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
               <option value="all">All sources</option>
-              {Array.from(new Set(modeApplications.map((application) => application.job.source))).map(
+              {Array.from(
+                new Set(modeApplications.map((application) => application.job.sourceDisplayName))
+              ).map(
                 (source) => (
                   <option key={source} value={source}>
-                    {formatLabel(source)}
+                    {source}
                   </option>
                 )
               )}
@@ -194,8 +196,10 @@ export function ApplicationsBoard({
                   </td>
                   <td>
                     <div className="table-primary">
-                      <span>{formatLabel(application.job.source)}</span>
-                      <span className="muted">{application.job.location}</span>
+                      <span>{application.job.sourceDisplayName}</span>
+                      <span className="muted">
+                        {formatLabel(application.job.source)} · {application.job.location}
+                      </span>
                     </div>
                   </td>
                   <td>
@@ -259,7 +263,7 @@ export function ApplicationsBoard({
               </div>
               <div className="detail-row">
                 <span>Source</span>
-                <strong>{formatLabel(selectedApplication.job.source)}</strong>
+                <strong>{selectedApplication.job.sourceDisplayName}</strong>
               </div>
               <div className="detail-row">
                 <span>Compensation</span>

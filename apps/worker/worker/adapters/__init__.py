@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+from app.models import JobSourceConfig
+from job_focus_shared import JobSource
+
 from worker.adapters.base import SourceAdapter
 from worker.adapters.greenhouse import GreenhouseJobAdapter
 from worker.adapters.lever import LeverJobAdapter
@@ -14,6 +19,7 @@ from worker.config import WorkerSettings
 
 def build_source_adapters(
     settings: WorkerSettings,
+    sources: Sequence[JobSourceConfig] | None = None,
     http_client: RateLimitedJsonClient | None = None,
 ) -> list[SourceAdapter]:
     client = http_client or RateLimitedJsonClient(
@@ -24,13 +30,35 @@ def build_source_adapters(
     )
 
     adapters: list[SourceAdapter] = []
-    if settings.greenhouse_boards:
-        adapters.append(GreenhouseJobAdapter(settings.greenhouse_boards, client))
-    if settings.lever_sites:
-        adapters.append(LeverJobAdapter(settings.lever_sites, client))
+    if sources is not None:
+        configured_sources = list(sources)
+        for source in configured_sources:
+            if not source.is_active or not source.external_identifier:
+                continue
+            if source.slug == JobSource.GREENHOUSE:
+                adapters.append(
+                    GreenhouseJobAdapter(
+                        source.external_identifier,
+                        client,
+                        source_id=source.id,
+                        source_display_name=source.display_name,
+                    )
+                )
+            elif source.slug == JobSource.LEVER:
+                adapters.append(
+                    LeverJobAdapter(
+                        source.external_identifier,
+                        client,
+                        source_id=source.id,
+                        source_display_name=source.display_name,
+                    )
+                )
+        return adapters
 
-    adapters.append(LinkedInManualLinkAdapter())
-    adapters.append(HandshakeManualLinkAdapter())
+    for board_token in settings.greenhouse_boards:
+        adapters.append(GreenhouseJobAdapter(board_token, client))
+    for site_name in settings.lever_sites:
+        adapters.append(LeverJobAdapter(site_name, client))
     return adapters
 
 

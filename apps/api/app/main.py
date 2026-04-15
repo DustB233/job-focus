@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import applications, auth, health, jobs, matches, profile, tracker
+from app.api.routes import applications, auth, health, jobs, matches, profile, sources, tracker
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -31,4 +31,5 @@ app.include_router(profile.router)
 app.include_router(jobs.router)
 app.include_router(matches.router)
 app.include_router(applications.router)
+app.include_router(sources.router)
 app.include_router(tracker.router)

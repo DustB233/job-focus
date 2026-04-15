@@ -100,16 +100,36 @@ class Resume(TimestampMixin, Base):
 
 class JobSourceConfig(TimestampMixin, Base):
     __tablename__ = "job_sources"
+    __table_args__ = (
+        UniqueConstraint("slug", "external_identifier", name="uq_job_sources_slug_external_identifier"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     slug: Mapped[JobSource] = mapped_column(
         Enum(JobSource, native_enum=False, values_callable=enum_values),
-        unique=True,
         index=True,
     )
+    external_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
     display_name: Mapped[str] = mapped_column(String(255))
     base_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_sync_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_sync_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_sync_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_successful_sync_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_fetched_job_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_created_job_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_updated_job_count: Mapped[int] = mapped_column(Integer, default=0)
 
     jobs: Mapped[list["Job"]] = relationship(back_populates="job_source")
 

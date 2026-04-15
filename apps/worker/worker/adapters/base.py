@@ -16,7 +16,9 @@ SALARY_RANGE_PATTERN = re.compile(
 class SourceAdapter(Protocol):
     name: str
     slug: JobSource
+    source_id: str | None
     source_display_name: str
+    source_external_identifier: str | None
     base_url: str | None
 
     def fetch_jobs(self, *, run_at: datetime | None = None) -> list[DiscoveredJobDTO]:

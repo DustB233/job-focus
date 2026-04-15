@@ -55,7 +55,8 @@ export function ShortlistBoard({ applications, jobs, matches }: ShortlistBoardPr
 
   const filteredRows = rows.filter((row) => {
     const applicationStatus = row.application?.status ?? "unapplied";
-    const matchesSource = sourceFilter === "all" || row.job.source === sourceFilter;
+    const matchesSource =
+      sourceFilter === "all" || row.job.sourceDisplayName === sourceFilter;
     const matchesStatus = statusFilter === "all" || applicationStatus === statusFilter;
     const matchesCompany =
       deferredCompany.length === 0 || row.job.company.toLowerCase().includes(deferredCompany);
@@ -78,9 +79,9 @@ export function ShortlistBoard({ applications, jobs, matches }: ShortlistBoardPr
           <span>Source</span>
           <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
             <option value="all">All sources</option>
-            {Array.from(new Set(rows.map((row) => row.job.source))).map((source) => (
+            {Array.from(new Set(rows.map((row) => row.job.sourceDisplayName))).map((source) => (
               <option key={source} value={source}>
-                {formatLabel(source)}
+                {source}
               </option>
             ))}
           </select>
@@ -138,8 +139,10 @@ export function ShortlistBoard({ applications, jobs, matches }: ShortlistBoardPr
                 </td>
                 <td>
                   <div className="table-primary">
-                    <span>{formatLabel(row.job.source)}</span>
-                    <span className="muted">{formatDate(row.job.postedAt)}</span>
+                    <span>{row.job.sourceDisplayName}</span>
+                    <span className="muted">
+                      {formatLabel(row.job.source)} · {formatDate(row.job.postedAt)}
+                    </span>
                   </div>
                 </td>
                 <td>

@@ -49,7 +49,7 @@ def test_tracker_overview_counts_seeded_records(client: TestClient) -> None:
     assert payload["userCount"] == 1
     assert payload["jobCount"] == 3
     assert payload["applicationCount"] == 3
-    assert payload["configuredLiveSourceCount"] == 0
+    assert payload["configuredLiveSourceCount"] == 2
 
 
 def test_tracker_distinguishes_configured_sources_before_first_ingest(
@@ -58,18 +58,27 @@ def test_tracker_distinguishes_configured_sources_before_first_ingest(
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6390/15")
     monkeypatch.setenv("CORS_ORIGINS", "http://localhost:3000")
-    monkeypatch.setenv("GREENHOUSE_BOARD_TOKENS", "northstar")
-    monkeypatch.setenv("LEVER_SITE_NAMES", "")
 
     from app.core.config import reset_settings_cache
     from app.db.session import create_all_tables, reset_engine, session_scope
+    from app.repositories import JobFocusRepository
     from app.services.tracker import build_source_health, build_tracker_overview
+    from job_focus_shared import JobSource, SourceCreateDTO
 
     reset_settings_cache()
     reset_engine()
     create_all_tables()
 
     with session_scope() as session:
+        repository = JobFocusRepository(session)
+        repository.create_job_source(
+            SourceCreateDTO(
+                source=JobSource.GREENHOUSE,
+                external_identifier="northstar",
+                display_name="Greenhouse / Northstar",
+                is_active=True,
+            )
+        )
         overview = build_tracker_overview(session)
         source_health = build_source_health(session)
 

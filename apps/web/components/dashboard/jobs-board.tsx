@@ -51,7 +51,8 @@ export function JobsBoard({
 
   const statusOptions = Array.from(new Set(rows.map((row) => row.pipelineStatus))).sort();
   const filteredRows = rows.filter((row) => {
-    const matchesSource = sourceFilter === "all" || row.job.source === sourceFilter;
+    const matchesSource =
+      sourceFilter === "all" || row.job.sourceDisplayName === sourceFilter;
     const matchesStatus = statusFilter === "all" || row.pipelineStatus === statusFilter;
     const matchesCompany =
       deferredCompany.length === 0 || row.job.company.toLowerCase().includes(deferredCompany);
@@ -78,9 +79,9 @@ export function JobsBoard({
             <span>Source</span>
             <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
               <option value="all">All sources</option>
-              {Array.from(new Set(jobs.map((job) => job.source))).map((source) => (
+              {Array.from(new Set(jobs.map((job) => job.sourceDisplayName))).map((source) => (
                 <option key={source} value={source}>
-                  {formatLabel(source)}
+                  {source}
                 </option>
               ))}
             </select>
@@ -138,8 +139,10 @@ export function JobsBoard({
                   </td>
                   <td>
                     <div className="table-primary">
-                      <span>{formatLabel(row.job.source)}</span>
-                      <span className="muted">{row.job.location}</span>
+                      <span>{row.job.sourceDisplayName}</span>
+                      <span className="muted">
+                        {formatLabel(row.job.source)} · {row.job.location}
+                      </span>
                     </div>
                   </td>
                   <td>

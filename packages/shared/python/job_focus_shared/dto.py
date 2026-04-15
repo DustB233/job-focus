@@ -90,6 +90,7 @@ class UserPreferenceUpdateDTO(SharedModel):
 
 class JobDTO(SharedModel):
     id: str
+    source_id: str
     external_job_id: str
     company: str
     title: str
@@ -97,6 +98,8 @@ class JobDTO(SharedModel):
     work_mode: WorkMode
     employment_type: EmploymentType
     source: JobSource
+    source_display_name: str
+    source_external_identifier: str | None
     salary_min: int
     salary_max: int
     description: str
@@ -189,14 +192,54 @@ class ApplicationReviewRequestDTO(SharedModel):
 
 
 class SourceHealthDTO(SharedModel):
+    id: str
     source: JobSource
     display_name: str
+    external_identifier: str | None
+    base_url: str | None
     status: SourceHealthStatus
     is_active: bool
     job_count: int
     last_seen_at: datetime | None
     last_posted_at: datetime | None
+    last_sync_requested_at: datetime | None
+    last_sync_started_at: datetime | None
+    last_sync_completed_at: datetime | None
+    last_successful_sync_at: datetime | None
+    last_error: str | None
+    last_error_at: datetime | None
+    last_fetched_job_count: int
+    last_created_job_count: int
+    last_updated_job_count: int
     note: str
+
+
+class SourceRegistryDTO(SharedModel):
+    id: str
+    source: JobSource
+    display_name: str
+    external_identifier: str | None
+    base_url: str | None
+    is_active: bool
+    tracked_job_count: int
+    status: SourceHealthStatus
+    last_sync_requested_at: datetime | None
+    last_sync_started_at: datetime | None
+    last_sync_completed_at: datetime | None
+    last_successful_sync_at: datetime | None
+    last_error: str | None
+    last_error_at: datetime | None
+    last_fetched_job_count: int
+    last_created_job_count: int
+    last_updated_job_count: int
+    note: str
+
+
+class SourceCreateDTO(SharedModel):
+    source: JobSource
+    external_identifier: str
+    display_name: str | None = None
+    is_active: bool = True
 
 
 class TrackerOverviewDTO(SharedModel):

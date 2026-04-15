@@ -56,24 +56,47 @@ def ingest_jobs(
     run_at = run_at or utc_now()
     settings = settings or WorkerSettings()
     repository = JobFocusRepository(session)
-    adapter_list = list(adapters) if adapters is not None else build_source_adapters(settings)
+    adapter_list = (
+        list(adapters)
+        if adapters is not None
+        else build_source_adapters(settings, repository.list_active_ingest_sources())
+    )
     fetched_jobs = 0
     created_jobs = 0
     updated_jobs = 0
 
     for adapter in adapter_list:
-        source = repository.get_or_create_job_source(
-            slug=adapter.slug,
-            display_name=adapter.source_display_name,
-            base_url=adapter.base_url,
+        source = (
+            repository.get_job_source(adapter.source_id)
+            if adapter.source_id is not None
+            else None
         )
+        if source is None:
+            source = repository.get_or_create_job_source(
+                slug=adapter.slug,
+                external_identifier=adapter.source_external_identifier,
+                display_name=adapter.source_display_name,
+                base_url=adapter.base_url,
+            )
+        repository.mark_job_source_sync_started(source, started_at=run_at)
         try:
             discovered_jobs = adapter.fetch_jobs(run_at=run_at)
         except HttpRequestError as error:
             logger.warning("ingest: adapter %s failed: %s", adapter.name, error)
+            repository.mark_job_source_sync_completed(
+                source,
+                completed_at=run_at,
+                fetched_job_count=0,
+                created_job_count=0,
+                updated_job_count=0,
+                error=str(error),
+            )
             continue
 
-        fetched_jobs += len(discovered_jobs)
+        source_fetched_jobs = len(discovered_jobs)
+        source_created_jobs = 0
+        source_updated_jobs = 0
+        fetched_jobs += source_fetched_jobs
         for discovered_job in discovered_jobs:
             if discovered_job.source != adapter.slug:
                 logger.warning(
@@ -88,9 +111,18 @@ def ingest_jobs(
                 discovered_job=discovered_job,
             )
             if created:
+                source_created_jobs += 1
                 created_jobs += 1
             else:
+                source_updated_jobs += 1
                 updated_jobs += 1
+        repository.mark_job_source_sync_completed(
+            source,
+            completed_at=run_at,
+            fetched_job_count=source_fetched_jobs,
+            created_job_count=source_created_jobs,
+            updated_job_count=source_updated_jobs,
+        )
 
     session.commit()
     tracker.record("ingest", run_at)

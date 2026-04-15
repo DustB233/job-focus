@@ -26,8 +26,8 @@ export function SourceHealthStrip({
           <h3>No live sources configured yet</h3>
         </div>
         <p className="muted">
-          Configure Greenhouse or Lever in the API and worker environment before the dashboard can
-          ingest live jobs. LinkedIn and Handshake remain manual-only.
+          Add Greenhouse or Lever sources from the source registry before the dashboard can ingest
+          live jobs. LinkedIn and Handshake remain manual-only.
         </p>
       </section>
     );
@@ -49,8 +49,8 @@ export function SourceHealthStrip({
 
   return (
     <div className="health-grid">
-      {sourceHealth.map((source) => (
-        <article key={source.source} className="health-card">
+      {liveSources.map((source) => (
+        <article key={source.id} className="health-card">
           <div className="health-card-head">
             <div>
               <p className="eyebrow">{source.displayName}</p>
@@ -70,6 +70,10 @@ export function SourceHealthStrip({
             <div className="detail-row">
               <span>Latest posting</span>
               <strong>{formatDate(source.lastPostedAt)}</strong>
+            </div>
+            <div className="detail-row">
+              <span>Last sync</span>
+              <strong>{formatDate(source.lastSyncCompletedAt)}</strong>
             </div>
           </div>
         </article>

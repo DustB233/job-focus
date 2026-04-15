@@ -1,4 +1,4 @@
-import type { DashboardSnapshotDTO } from "@job-focus/shared";
+import type { DashboardSnapshotDTO, SourceHealthDTO, TrackerOverviewDTO } from "@job-focus/shared";
 
 import { formatLabel, formatTimestamp } from "@/lib/dashboard-data";
 import {
@@ -18,6 +18,9 @@ type PageShellProps = {
   title: string;
   description: string;
   snapshot?: DashboardSnapshotDTO | null;
+  trackerOverride?: TrackerOverviewDTO | null;
+  sourceHealthOverride?: SourceHealthDTO[] | null;
+  summaryChips?: React.ReactNode;
   availabilityMessage?: string | null;
   children: React.ReactNode;
 };
@@ -28,14 +31,19 @@ export function PageShell({
   title,
   description,
   snapshot,
+  trackerOverride,
+  sourceHealthOverride,
+  summaryChips,
   availabilityMessage,
   children
 }: PageShellProps) {
-  const tracker = snapshot?.tracker ?? null;
-  const sourceHealth = snapshot?.sourceHealth ?? [];
+  const tracker = trackerOverride ?? snapshot?.tracker ?? null;
+  const sourceHealth = sourceHealthOverride ?? snapshot?.sourceHealth ?? [];
   const liveSourceHealth = sourceHealth.filter(isLiveSource);
   const healthSummary = snapshot
-    ? sourceHealthSummary(sourceHealth, snapshot.tracker)
+    ? sourceHealthSummary(sourceHealth, tracker ?? snapshot.tracker)
+    : tracker
+      ? sourceHealthSummary(sourceHealth, tracker)
     : "Live source health unavailable";
 
   function formatTrackerValue(value: string | null) {
@@ -105,7 +113,7 @@ export function PageShell({
           {liveSourceHealth.length > 0 ? (
             <div className="sidebar-health-list">
               {sourceHealth.map((source) => (
-                <div key={source.source} className="sidebar-health-item">
+                <div key={source.id} className="sidebar-health-item">
                   <span>{source.displayName}</span>
                   <StatusBadge
                     label={formatLabel(source.status)}
@@ -129,7 +137,9 @@ export function PageShell({
           <div className="eyebrow">{eyebrow}</div>
           <h2>{title}</h2>
           <p>{description}</p>
-          {snapshot ? (
+          {summaryChips ? (
+            <div className="hero-band">{summaryChips}</div>
+          ) : snapshot ? (
             <div className="hero-band">
               <span className="chip mono">{snapshot.profile.email}</span>
               <span className="chip">{snapshot.profile.location}</span>

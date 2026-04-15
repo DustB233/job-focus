@@ -14,6 +14,8 @@ class ManualLinkPlaceholderAdapter(SourceAdapter):
     slug = JobSource.MANUAL
     source_display_name = "Manual Link"
     base_url = None
+    source_id = None
+    source_external_identifier = None
 
     def __init__(self, *, name: str, supported_hosts: Sequence[str]) -> None:
         self.name = name

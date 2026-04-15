@@ -69,6 +69,7 @@ export type UserPreferenceUpdateDTO = {
 
 export type JobDTO = {
   id: string;
+  sourceId: string;
   externalJobId: string;
   company: string;
   title: string;
@@ -76,6 +77,8 @@ export type JobDTO = {
   workMode: WorkMode;
   employmentType: EmploymentType;
   source: JobSource;
+  sourceDisplayName: string;
+  sourceExternalIdentifier: string | null;
   salaryMin: number;
   salaryMax: number;
   description: string;
@@ -168,14 +171,54 @@ export type ApplicationReviewRequestDTO = {
 };
 
 export type SourceHealthDTO = {
+  id: string;
   source: JobSource;
   displayName: string;
+  externalIdentifier: string | null;
+  baseUrl: string | null;
   status: SourceHealthStatus;
   isActive: boolean;
   jobCount: number;
   lastSeenAt: string | null;
   lastPostedAt: string | null;
+  lastSyncRequestedAt: string | null;
+  lastSyncStartedAt: string | null;
+  lastSyncCompletedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+  lastFetchedJobCount: number;
+  lastCreatedJobCount: number;
+  lastUpdatedJobCount: number;
   note: string;
+};
+
+export type SourceRegistryDTO = {
+  id: string;
+  source: JobSource;
+  displayName: string;
+  externalIdentifier: string | null;
+  baseUrl: string | null;
+  isActive: boolean;
+  trackedJobCount: number;
+  status: SourceHealthStatus;
+  lastSyncRequestedAt: string | null;
+  lastSyncStartedAt: string | null;
+  lastSyncCompletedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+  lastFetchedJobCount: number;
+  lastCreatedJobCount: number;
+  lastUpdatedJobCount: number;
+  note: string;
+};
+
+export type SourceCreateDTO = {
+  source: JobSource;
+  externalIdentifier: string;
+  displayName: string | null;
+  isActive: boolean;
 };
 
 export type TrackerOverviewDTO = {

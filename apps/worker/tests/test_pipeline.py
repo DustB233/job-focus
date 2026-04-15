@@ -31,12 +31,23 @@ class DummyTracker:
 
 
 class StaticAdapter:
-    name = "Greenhouse"
-    slug = JobSource.GREENHOUSE
-    source_display_name = "Greenhouse"
-    base_url = "https://boards-api.greenhouse.io/v1/boards"
-
-    def __init__(self, jobs: list[DiscoveredJobDTO]) -> None:
+    def __init__(
+        self,
+        jobs: list[DiscoveredJobDTO],
+        *,
+        name: str = "Greenhouse",
+        slug: JobSource = JobSource.GREENHOUSE,
+        source_display_name: str = "Greenhouse",
+        source_external_identifier: str = "fixture-greenhouse",
+        source_id: str | None = None,
+        base_url: str = "https://boards-api.greenhouse.io/v1/boards",
+    ) -> None:
+        self.name = name
+        self.slug = slug
+        self.source_display_name = source_display_name
+        self.source_external_identifier = source_external_identifier
+        self.source_id = source_id
+        self.base_url = base_url
         self.jobs = jobs
 
     def fetch_jobs(self, *, run_at=None) -> list[DiscoveredJobDTO]:  # noqa: ANN001
@@ -88,9 +99,63 @@ def test_worker_pipeline_enriches_seeded_data(monkeypatch, tmp_path: Path) -> No
             }
         )
     )
+    adapters = [
+        StaticAdapter(
+            [
+                DiscoveredJobDTO(
+                    source=JobSource.GREENHOUSE,
+                    external_job_id="northstar-ai-program-manager",
+                    company="Northstar Labs",
+                    title="AI Program Manager",
+                    location="Remote - US",
+                    work_mode=WorkMode.REMOTE,
+                    employment_type=EmploymentType.FULL_TIME,
+                    salary_min=155000,
+                    salary_max=185000,
+                    description="Lead cross-functional delivery for AI product launches and process automation.",
+                    application_url="https://boards.greenhouse.io/northstar/jobs/12345",
+                    seniority_level="senior",
+                    authorization_requirement="US work authorization required",
+                    posted_at=datetime(2026, 4, 11, 18, 0, tzinfo=timezone.utc),
+                    raw_payload={"boardToken": "northstar", "fixture": True},
+                )
+            ],
+            source_display_name="Greenhouse / Northstar",
+            source_external_identifier="northstar",
+            source_id="4de97149-68d8-4a0d-a949-ed9734ec4a8a",
+            base_url="https://boards-api.greenhouse.io/v1/boards/northstar",
+        ),
+        StaticAdapter(
+            [
+                DiscoveredJobDTO(
+                    source=JobSource.LEVER,
+                    external_job_id="relay-ops-systems-lead",
+                    company="Relay Commerce",
+                    title="Operations Systems Lead",
+                    location="San Francisco, CA",
+                    work_mode=WorkMode.HYBRID,
+                    employment_type=EmploymentType.FULL_TIME,
+                    salary_min=145000,
+                    salary_max=172000,
+                    description="Own business systems, recruiting workflows, and operational analytics.",
+                    application_url="https://jobs.lever.co/relay/abc123",
+                    seniority_level="lead",
+                    authorization_requirement="US work authorization required",
+                    posted_at=datetime(2026, 4, 10, 14, 0, tzinfo=timezone.utc),
+                    raw_payload={"siteName": "relay", "fixture": True},
+                )
+            ],
+            name="Lever",
+            slug=JobSource.LEVER,
+            source_display_name="Lever / Relay",
+            source_external_identifier="relay",
+            source_id="4f55cfd6-115e-4e2f-b20d-027c3f0f30af",
+            base_url="https://api.lever.co/v0/postings/relay?mode=json",
+        ),
+    ]
 
     with session_scope() as session:
-        ingest_result = ingest_jobs(session, tracker, settings=settings)
+        ingest_result = ingest_jobs(session, tracker, settings=settings, adapters=adapters)
         score_result = score_jobs(session, tracker)
         packet_result = generate_packets(session, tracker, settings)
         apply_result = apply_jobs(session, tracker, settings=settings, executor=executor)
@@ -101,7 +166,7 @@ def test_worker_pipeline_enriches_seeded_data(monkeypatch, tmp_path: Path) -> No
         applications = session.scalars(select(Application)).all()
         packets = session.scalars(select(ApplicationPacket)).all()
 
-    assert ingest_result["source_count"] >= 2
+    assert ingest_result["source_count"] == 2
     assert ingest_result["created_jobs"] == 0
     assert score_result["created_matches"] >= 1
     assert packet_result["ready_packets"] == 0

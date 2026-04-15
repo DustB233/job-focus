@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.repositories import JobFocusRepository
 from app.models import Application, Job, JobMatch, User
-from job_focus_shared import JobSource, SourceHealthDTO, TrackerOverviewDTO
+from job_focus_shared import SourceHealthDTO, TrackerOverviewDTO
 
 TRACKER_KEYS = {
     "last_ingest_at": "job_focus:worker:last_run:ingest",
@@ -46,21 +46,8 @@ def read_tracker_state() -> dict[str, datetime | bool | None]:
             "last_packet_at": None,
             "last_apply_at": None,
         }
-
-
-def configured_live_sources() -> dict[JobSource, str]:
-    settings = get_settings()
-    configured: dict[JobSource, str] = {}
-
-    if settings.greenhouse_boards:
-        configured[JobSource.GREENHOUSE] = "Greenhouse"
-    if settings.lever_sites:
-        configured[JobSource.LEVER] = "Lever"
-
-    return configured
-
-
 def build_tracker_overview(session: Session) -> TrackerOverviewDTO:
+    repository = JobFocusRepository(session)
     counts = {
         "user_count": session.scalar(select(func.count(User.id))) or 0,
         "job_count": session.scalar(select(func.count(Job.id))) or 0,
@@ -68,11 +55,10 @@ def build_tracker_overview(session: Session) -> TrackerOverviewDTO:
         "application_count": session.scalar(select(func.count(Application.id))) or 0,
     }
     state = read_tracker_state()
-    configured_sources = configured_live_sources()
 
     return TrackerOverviewDTO(
         **counts,
-        configured_live_source_count=len(configured_sources),
+        configured_live_source_count=repository.count_configured_live_sources(),
         last_ingest_at=state["last_ingest_at"],
         last_score_at=state["last_score_at"],
         last_packet_at=state["last_packet_at"],
@@ -84,7 +70,4 @@ def build_tracker_overview(session: Session) -> TrackerOverviewDTO:
 def build_source_health(session: Session) -> list[SourceHealthDTO]:
     tracker_state = read_tracker_state()
     repository = JobFocusRepository(session)
-    return repository.list_source_health(
-        last_ingest_at=tracker_state["last_ingest_at"],
-        configured_live_sources=configured_live_sources(),
-    )
+    return repository.list_source_health(last_ingest_at=tracker_state["last_ingest_at"])

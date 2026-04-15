@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
@@ -25,30 +24,37 @@ from worker.clients.http import RateLimitedJsonClient
 class LeverJobAdapter(SourceAdapter):
     name = "Lever"
     slug = JobSource.LEVER
-    source_display_name = "Lever"
-    base_url = "https://api.lever.co/v0/postings"
+    source_id: str | None
 
-    def __init__(self, site_names: Sequence[str], http_client: RateLimitedJsonClient) -> None:
-        self.site_names = [site.strip() for site in site_names if site.strip()]
+    def __init__(
+        self,
+        site_name: str,
+        http_client: RateLimitedJsonClient,
+        *,
+        source_id: str | None = None,
+        source_display_name: str | None = None,
+    ) -> None:
+        normalized_site_name = site_name.strip()
+        self.source_id = source_id
+        self.site_name = normalized_site_name
+        self.source_external_identifier = normalized_site_name
+        self.source_display_name = source_display_name or f"Lever / {title_case_slug(normalized_site_name)}"
+        self.base_url = f"https://api.lever.co/v0/postings/{quote(normalized_site_name, safe='')}?mode=json"
         self.http_client = http_client
 
     def fetch_jobs(self, *, run_at: datetime | None = None) -> list[DiscoveredJobDTO]:
-        discovered_jobs: list[DiscoveredJobDTO] = []
-        for site_name in self.site_names:
-            url = f"{self.base_url}/{quote(site_name, safe='')}?mode=json"
-            payload = self.http_client.get_json(url)
-            raw_jobs = payload if isinstance(payload, list) else payload.get("data", [])
-            company_name = title_case_slug(site_name)
-            for raw_job in raw_jobs:
-                discovered_jobs.append(
-                    self._normalize_job(
-                        site_name=site_name,
-                        company_name=company_name,
-                        raw_job=raw_job,
-                        run_at=run_at,
-                    )
-                )
-        return discovered_jobs
+        payload = self.http_client.get_json(self.base_url)
+        raw_jobs = payload if isinstance(payload, list) else payload.get("data", [])
+        company_name = title_case_slug(self.site_name)
+        return [
+            self._normalize_job(
+                site_name=self.site_name,
+                company_name=company_name,
+                raw_job=raw_job,
+                run_at=run_at,
+            )
+            for raw_job in raw_jobs
+        ]
 
     def _normalize_job(
         self,
