@@ -141,6 +141,46 @@ cd apps/api && alembic upgrade head
 11. Redeploy the API if `CORS_ORIGINS` changed.
 12. Redeploy the web app and confirm live API traffic works.
 
+## First Real User Bootstrap
+
+If the deployment has jobs but `userCount=0`, the worker cannot score jobs or build packets because the current single-user system resolves work against the oldest row in `users`. Bootstrap the first real user from a trusted Render shell session on the API service.
+
+Run from the repository root:
+
+```bash
+npm run bootstrap_primary_user --workspace @job-focus/api -- \
+  --email you@example.com \
+  --full-name "Your Name" \
+  --headline "Your real professional headline" \
+  --location "Your City, ST" \
+  --target-role "Your target role" \
+  --years-experience 8 \
+  --authorization-region US \
+  --preferred-location "Remote - US" \
+  --preferred-work-mode remote \
+  --preferred-employment-type full_time \
+  --desired-salary-min 180000 \
+  --desired-salary-max 220000 \
+  --resume-title "Your Resume Title" \
+  --resume-file-name "your-resume.pdf" \
+  --resume-summary "A real summary of your experience." \
+  --resume-skill Python \
+  --resume-skill SQL
+```
+
+Notes:
+
+- If you omit `--password`, the script prompts for it interactively.
+- The script refuses to run if any user already exists in the database.
+- This creates one real primary user, one profile row, one preferences row, and one default resume metadata row. It does not create demo jobs, demo matches, or demo applications.
+- For the current Greenhouse and Lever direct adapters, structured resume metadata is sufficient. If you later enable browser assist and want resume file uploads, place the matching file in `BROWSER_RESUME_STORAGE_DIR`.
+
+After the bootstrap succeeds, trigger the worker once or wait for the next scheduled cycle:
+
+```bash
+cd apps/worker && python -m worker.main --once
+```
+
 ## Render Blueprint Flow
 
 If you prefer to let Render create the backend stack from the repository:

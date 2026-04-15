@@ -61,6 +61,7 @@ Monorepo scaffold for a job application automation platform with a Next.js dashb
 - `packages/shared`: TypeScript Zod schemas plus Python Pydantic DTOs and enums.
 - `docker-compose.yml`: local Postgres and Redis services for development.
 - `apps/api/scripts/reset_dev_demo_data.py`: guarded local-only reset script for one demo user, one resume, demo jobs, matches, and one queued application.
+- `apps/api/scripts/bootstrap_primary_user.py`: production-safe CLI for the first real primary user, profile, preferences, and base resume metadata.
 
 ## Local Dev Demo Credentials
 
@@ -132,6 +133,7 @@ npm run test
 npm run build
 npm run migrate --workspace @job-focus/api
 npm run reset_dev_demo_data
+npm run bootstrap_primary_user --workspace @job-focus/api -- --help
 npm run dev:once --workspace @job-focus/worker
 ```
 
@@ -148,6 +150,39 @@ npm run start --workspace @job-focus/web
 ```
 
 See [DEPLOYMENT.md](/C:/Users/admin/Downloads/Job%20Focus/DEPLOYMENT.md) for the hosted Vercel + Render deployment path, production env templates, verification steps, and manual demo-row inspection guidance.
+
+## Production First-User Bootstrap
+
+If the live system has jobs but `userCount=0`, the worker cannot score jobs or build packets because it resolves work against the first user row in `users`. Bootstrap the first real user from a trusted shell session:
+
+```bash
+npm run bootstrap_primary_user --workspace @job-focus/api -- \
+  --email you@example.com \
+  --full-name "Your Name" \
+  --headline "Your real professional headline" \
+  --location "Your City, ST" \
+  --target-role "Your target role" \
+  --years-experience 8 \
+  --authorization-region US \
+  --preferred-location "Remote - US" \
+  --preferred-work-mode remote \
+  --preferred-employment-type full_time \
+  --desired-salary-min 180000 \
+  --desired-salary-max 220000 \
+  --resume-title "Your Resume Title" \
+  --resume-file-name "your-resume.pdf" \
+  --resume-summary "A real summary of your experience." \
+  --resume-skill Python \
+  --resume-skill SQL
+```
+
+If you omit `--password`, the script prompts for it securely instead of writing it into shell history. The script refuses to run once any user row already exists.
+
+After the bootstrap succeeds, run the worker once to confirm scoring and packet generation:
+
+```bash
+npm run dev:once --workspace @job-focus/worker
+```
 
 ## Worker Source Config
 
