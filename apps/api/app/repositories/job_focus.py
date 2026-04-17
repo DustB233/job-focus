@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from typing import Any
@@ -29,7 +30,7 @@ from job_focus_shared import (
     UserProfileDTO,
     WorkMode,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -98,6 +99,13 @@ ALLOWED_APPLICATION_TRANSITIONS: dict[ApplicationStatus, set[ApplicationStatus]]
 
 AUTOMATED_SOURCE_SLUGS = {JobSource.GREENHOUSE, JobSource.LEVER}
 MANUAL_ONLY_SOURCE_SLUGS = {JobSource.MANUAL}
+
+
+@dataclass(frozen=True, slots=True)
+class SourceJobStats:
+    job_count: int = 0
+    last_seen_at: datetime | None = None
+    last_posted_at: datetime | None = None
 
 
 def _title_case_identifier(value: str) -> str:
@@ -197,7 +205,28 @@ class JobFocusRepository:
         )
 
     def list_source_registry(self) -> list[JobSourceConfig]:
-        return self.list_job_sources()
+        return list(
+            self.session.scalars(
+                select(JobSourceConfig)
+                .order_by(JobSourceConfig.display_name.asc(), JobSourceConfig.created_at.asc())
+            ).all()
+        )
+
+    def list_source_registry_dtos(
+        self,
+        *,
+        last_ingest_at: datetime | None = None,
+    ) -> list[SourceRegistryDTO]:
+        sources = self.list_source_registry()
+        stats_by_source_id = self._load_source_job_stats(source.id for source in sources)
+        return [
+            self.to_source_registry_dto(
+                source,
+                last_ingest_at=last_ingest_at,
+                stats=stats_by_source_id.get(source.id),
+            )
+            for source in sources
+        ]
 
     def list_active_ingest_sources(self) -> list[JobSourceConfig]:
         return list(
@@ -826,10 +855,9 @@ class JobFocusRepository:
         *,
         last_ingest_at: datetime | None = None,
     ) -> SourceHealthDTO:
-        jobs = sorted(source.jobs, key=lambda job: job.updated_at, reverse=True)
-        last_seen_at = jobs[0].updated_at if jobs else source.last_successful_sync_at or last_ingest_at
-        last_posted_at = max((job.posted_at for job in jobs), default=None)
-        status, note = self._resolve_source_health(source, jobs, last_ingest_at)
+        stats = self._build_source_job_stats_from_jobs(source.jobs)
+        last_seen_at = stats.last_seen_at or source.last_successful_sync_at or last_ingest_at
+        status, note = self._resolve_source_health_from_stats(source, stats, last_ingest_at)
         return SourceHealthDTO(
             id=source.id,
             source=source.slug,
@@ -838,18 +866,18 @@ class JobFocusRepository:
             base_url=source.base_url,
             status=status,
             is_active=source.is_active,
-            job_count=len(jobs),
+            job_count=stats.job_count,
             last_seen_at=last_seen_at,
-            last_posted_at=last_posted_at,
+            last_posted_at=stats.last_posted_at,
             last_sync_requested_at=source.last_sync_requested_at,
             last_sync_started_at=source.last_sync_started_at,
             last_sync_completed_at=source.last_sync_completed_at,
             last_successful_sync_at=source.last_successful_sync_at,
             last_error=source.last_error,
             last_error_at=source.last_error_at,
-            last_fetched_job_count=source.last_fetched_job_count,
-            last_created_job_count=source.last_created_job_count,
-            last_updated_job_count=source.last_updated_job_count,
+            last_fetched_job_count=source.last_fetched_job_count or 0,
+            last_created_job_count=source.last_created_job_count or 0,
+            last_updated_job_count=source.last_updated_job_count or 0,
             note=note,
         )
 
@@ -858,8 +886,14 @@ class JobFocusRepository:
         source: JobSourceConfig,
         *,
         last_ingest_at: datetime | None = None,
+        stats: SourceJobStats | None = None,
     ) -> SourceRegistryDTO:
-        health = self.to_source_health_dto(source, last_ingest_at=last_ingest_at)
+        resolved_stats = stats or self._build_source_job_stats_from_jobs(source.jobs)
+        status, note = self._resolve_source_health_from_stats(
+            source,
+            resolved_stats,
+            last_ingest_at,
+        )
         return SourceRegistryDTO(
             id=source.id,
             source=source.slug,
@@ -867,18 +901,18 @@ class JobFocusRepository:
             external_identifier=source.external_identifier,
             base_url=source.base_url,
             is_active=source.is_active,
-            tracked_job_count=health.job_count,
-            status=health.status,
+            tracked_job_count=resolved_stats.job_count,
+            status=status,
             last_sync_requested_at=source.last_sync_requested_at,
             last_sync_started_at=source.last_sync_started_at,
             last_sync_completed_at=source.last_sync_completed_at,
             last_successful_sync_at=source.last_successful_sync_at,
             last_error=source.last_error,
             last_error_at=source.last_error_at,
-            last_fetched_job_count=source.last_fetched_job_count,
-            last_created_job_count=source.last_created_job_count,
-            last_updated_job_count=source.last_updated_job_count,
-            note=health.note,
+            last_fetched_job_count=source.last_fetched_job_count or 0,
+            last_created_job_count=source.last_created_job_count or 0,
+            last_updated_job_count=source.last_updated_job_count or 0,
+            note=note,
         )
 
     def to_auth_session_dto(self, token: str, user: User) -> AuthSessionDTO:
@@ -935,6 +969,18 @@ class JobFocusRepository:
         jobs: list[Job],
         last_ingest_at: datetime | None,
     ) -> tuple[SourceHealthStatus, str]:
+        return self._resolve_source_health_from_stats(
+            source,
+            self._build_source_job_stats_from_jobs(jobs),
+            last_ingest_at,
+        )
+
+    def _resolve_source_health_from_stats(
+        self,
+        source: JobSourceConfig,
+        stats: SourceJobStats,
+        last_ingest_at: datetime | None,
+    ) -> tuple[SourceHealthStatus, str]:
         if not source.is_active:
             return (
                 SourceHealthStatus.INACTIVE,
@@ -970,13 +1016,18 @@ class JobFocusRepository:
                 SourceHealthStatus.WARNING,
                 "Source is configured, but the worker has not synced it yet.",
             )
-        if not jobs:
+        if stats.job_count == 0:
             return (
                 SourceHealthStatus.WARNING,
                 "Source is active, but no jobs were discovered during the latest sync.",
             )
 
-        freshest_job = max(job.updated_at for job in jobs)
+        freshest_job = stats.last_seen_at
+        if freshest_job is None:
+            return (
+                SourceHealthStatus.WARNING,
+                "Source is active, but no jobs were discovered during the latest sync.",
+            )
         reference_time = (
             source.last_successful_sync_at
             or source.last_sync_completed_at
@@ -992,4 +1043,38 @@ class JobFocusRepository:
         return (
             SourceHealthStatus.HEALTHY,
             "Latest sync succeeded and the source is producing jobs.",
+        )
+
+    def _load_source_job_stats(self, source_ids: Iterable[str]) -> dict[str, SourceJobStats]:
+        source_id_list = list(source_ids)
+        if not source_id_list:
+            return {}
+
+        rows = self.session.execute(
+            select(
+                Job.job_source_id,
+                func.count(Job.id),
+                func.max(Job.updated_at),
+                func.max(Job.posted_at),
+            )
+            .where(Job.job_source_id.in_(source_id_list))
+            .group_by(Job.job_source_id)
+        ).all()
+        return {
+            str(source_id): SourceJobStats(
+                job_count=int(job_count or 0),
+                last_seen_at=last_seen_at,
+                last_posted_at=last_posted_at,
+            )
+            for source_id, job_count, last_seen_at, last_posted_at in rows
+        }
+
+    def _build_source_job_stats_from_jobs(self, jobs: Iterable[Job]) -> SourceJobStats:
+        job_list = list(jobs)
+        updated_values = [job.updated_at for job in job_list if job.updated_at is not None]
+        posted_values = [job.posted_at for job in job_list if job.posted_at is not None]
+        return SourceJobStats(
+            job_count=len(job_list),
+            last_seen_at=max(updated_values, default=None),
+            last_posted_at=max(posted_values, default=None),
         )

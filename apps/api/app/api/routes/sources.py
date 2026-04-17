@@ -22,11 +22,7 @@ def _last_ingest_at() -> datetime | None:
 @router.get("", response_model=list[SourceRegistryDTO])
 def list_sources(session: Session = Depends(get_db_session)) -> list[SourceRegistryDTO]:
     repository = JobFocusRepository(session)
-    last_ingest_at = _last_ingest_at()
-    return [
-        repository.to_source_registry_dto(source, last_ingest_at=last_ingest_at)
-        for source in repository.list_source_registry()
-    ]
+    return repository.list_source_registry_dtos(last_ingest_at=_last_ingest_at())
 
 
 @router.post("", response_model=SourceRegistryDTO, status_code=status.HTTP_201_CREATED)
